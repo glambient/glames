@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/9.3.2/math.js"></script> 
+<head>
+    <meta charset="utf-8" />
+    <title>LOZ redux</title>
+    <link rel="stylesheet" href="default.css" />
+</head>
+
+
+
+
+<body>
+    <canvas id="playwindow" width="500" height="500"></canvas>
+    <script>
+        // initialize level-wide values
+        var l = 5;  // grid size - this should be separate from m & n because of reasons
+        var m = n = l;  // m rows, m columns
+        var u = 500/l;  // size of each square
+
+        /*
+        link_frequency determines likelihood of an edge being a link.
+        In the original game, a value of 2.5 is similar to the first 30 levels,
+        while 2.0 is good for the next 20.
+        This value must be > 1.0 for anything to appear.
+        */
+        link_frequency = 2.5;
+
+        class Square {
+            constructor(n, w, s, e, size, shape) {
+                this.n = n;
+                this.w = w;
+                this.s = s;
+                this.e = e;
+                this.size = size;
+                this.shape = shape;
+            }
+
+            // implicitly rotates shapes 90 degrees clockwise
+            rotate() {
+                var temp = this.n;
+                this.n = this.w;
+                this.w = this.s;
+                this.s = this.e;
+                this.e = temp;
+            }
+        }
+        
+        // define north edges
+        var grid_edges_N = Array.from(Array(m+1), () => new Array(n).fill(0));  // creates nested array of 0's
+        for (var row = 1; row < m; row++) {
+            for (var col = 0; col < n; col++) {
+                grid_edges_N[row][col] = Math.min(Math.floor(Math.random() * link_frequency), 1);
+            }
+        }
+        // console.log("grid_edges_N", grid_edges_N);
+
+        // define west edges
+        var grid_edges_W = Array.from(Array(m), () => new Array(n+1).fill(0));
+        for (var row = 0; row < m; row++) {
+            for (var col = 1; col < n; col++) {
+                grid_edges_W[row][col] = Math.min(Math.floor(Math.random() * link_frequency), 1);
+            }
+        }
+        // console.log("grid_edges_W", grid_edges_W);
+
+        // create array of puzzle pieces
+        var grid_squares = Array.from(Array(m), () => new Array(n));
+        
+        // set up canvas
+        const canvas = document.getElementById("playwindow");
+        const ctx = canvas.getContext("2d");
+
+        // define squares
+        for (var row = 0; row < m; row++) {
+            for (var col = 0; col < n; col++) {
+                // create temporary variable square that helps define a new square within this matrix point
+                var square = grid_squares[row][col] = new Square(
+                                                    grid_edges_N[row][col],
+                                                    grid_edges_W[row][col],
+                                                    grid_edges_N[row+1][col],
+                                                    grid_edges_W[row][col+1],
+                                                    u, 0);
+
+                // at this point the square is a valid net
+                // now rotate the square by a rand(0,3) value
+                var initial_rotation = Math.floor(Math.random() * 4)
+                for (var i = 0; i < initial_rotation; i++) {
+                    square.rotate();
+                }
+            }
+        }
+
+        function redraw() {
+            // // retrieve the canvas and clear it
+            const u = 480/l;
+		    ctx.clearRect(0, 0, 480, 480);
+
+            for (var row = 0; row < m; row++) {
+                for (var col = 0; col < n; col++) {
+                    // select correct square
+                    thisSquare = grid_squares[row][col];
+
+                    // determine if north and west edges are appropriately matched
+                    // to corresponding south and east edges
+                    // if a mismatch is detected, the puzzle is not complete
+                    if (row > 0) {
+                        if (thisSquare.n != grid_squares[row-1][col].s) {
+                            levelComplete = false;
+                        }
+                    }
+                    if (col > 0) {
+                        if (thisSquare.w != grid_squares[row][col-1].e) {
+                            levelComplete = false;
+                        }
+                    }                 
+
+                    // calculate shape which will determine drawing
+                    shape = thisSquare.n*8 + thisSquare.w*4 + thisSquare.s*2 + thisSquare.e;
+                    // draw shapes
+                    ctx.lineWidth = u / 6;
+                    // ctx.lineCap = "round";  this needs layering in order to function
+                    var end_cap_size = u / 6;
+                    ctx.fillStyle = "white";
+                    
+                    // draw square
+                    switch (shape) {
+                        case 0:  // empty square
+                            break;
+                        case 1:
+                            ctx.beginPath();
+                            ctx.moveTo(u*(col+1), u*(row+0.5));
+                            ctx.lineTo(u*(col+0.5), u*(row+0.5));
+                            ctx.stroke();
+                            ctx.beginPath();
+                            // arc(x, y, radius, rad begin, rad end)
+                            ctx.arc(u*(col+0.5), u*(row+0.5), end_cap_size, 0, 2*Math.PI);
+                            ctx.fill();
+                            ctx.stroke();
+                            break;
+                        case 2:
+                            ctx.beginPath();
+                            ctx.moveTo(u*(col+0.5), u*(row+1));
+                            ctx.lineTo(u*(col+0.5), u*(row+0.5));
+                            ctx.stroke();
+                            ctx.beginPath();
+                            ctx.arc(u*(col+0.5), u*(row+0.5), end_cap_size, 0, 2*Math.PI);
+                            ctx.fill();
+                            ctx.stroke();
+                            break;
+                        case 3:
+                            ctx.beginPath();
+                            ctx.arc(u*(col+1), u*(row+1), u/2, Math.PI, 1.5*Math.PI);
+                            ctx.stroke();
+                            break;
+                        case 4:
+                            ctx.beginPath();
+                            ctx.moveTo(u*(col), u*(row+0.5));
+                            ctx.lineTo(u*(col+0.5), u*(row+0.5));
+                            ctx.stroke();
+                            ctx.beginPath();
+                            ctx.arc(u*(col+0.5), u*(row+0.5), end_cap_size, 0, 2*Math.PI);
+                            ctx.fill();
+                            ctx.stroke();
+                            break;
+                        case 5:  // horizontal line
+                            ctx.beginPath();
+                            ctx.moveTo(u*(col), u*(row+0.5));
+                            ctx.lineTo(u*(col+1), u*(row+0.5));
+                            ctx.stroke();
+                            break;
+                        case 6:
+                            ctx.beginPath();
+                            ctx.arc(u*(col), u*(row+1), u/2, 1.5*Math.PI, 2*Math.PI);
+                            ctx.stroke();
+                            break;
+                        case 7:  // 3 & 6
+                            ctx.beginPath();
+                            ctx.arc(u*(col), u*(row+1), u/2, 1.5*Math.PI, 2*Math.PI);
+                            ctx.stroke();
+                            ctx.beginPath();
+                            ctx.arc(u*(col+1), u*(row+1), u/2, Math.PI, 1.5*Math.PI);
+                            ctx.stroke();
+                            break;
+                        case 8:
+                            ctx.beginPath();
+                            ctx.moveTo(u*(col+0.5), u*(row));
+                            ctx.lineTo(u*(col+0.5), u*(row+0.5));
+                            ctx.stroke();
+                            ctx.beginPath();
+                            ctx.arc(u*(col+0.5), u*(row+0.5), end_cap_size, 0, 2*Math.PI);
+                            ctx.fill();
+                            ctx.stroke();
+                            break;                        
+                        case 9:
+                            ctx.beginPath();
+                            ctx.arc(u*(col+1), u*(row), u/2, 0.5*Math.PI, Math.PI);
+                            ctx.stroke();
+                            break;
+                        case 10:  // vertical line
+                            ctx.beginPath();
+                            ctx.moveTo(u*(col+0.5), u*(row));
+                            ctx.lineTo(u*(col+0.5), u*(row+1));
+                            ctx.stroke();
+                            break;
+                        case 11:  // 3 & 9
+                            ctx.beginPath();
+                            ctx.arc(u*(col+1), u*(row+1), u/2, Math.PI, 1.5*Math.PI);
+                            ctx.stroke();
+                            ctx.beginPath();
+                            ctx.arc(u*(col+1), u*(row), u/2, 0.5*Math.PI, Math.PI);
+                            ctx.stroke();
+                            break;
+                        case 12:
+                            ctx.beginPath();
+                            ctx.arc(u*(col), u*(row), u/2, 0, 0.5*Math.PI);
+                            ctx.stroke();
+                            break;
+                        case 13:  // 9 & 12
+                            ctx.beginPath();
+                            ctx.arc(u*(col+1), u*(row), u/2, 0.5*Math.PI, Math.PI);
+                            ctx.stroke();
+                            ctx.beginPath();
+                            ctx.arc(u*(col), u*(row), u/2, 0, 0.5*Math.PI);
+                            ctx.stroke();
+                            break;
+                        case 14:  // 6 & 12
+                            ctx.beginPath();
+                            ctx.arc(u*(col), u*(row), u/2, 0, 0.5*Math.PI);
+                            ctx.stroke();
+                            ctx.beginPath();
+                            ctx.arc(u*(col), u*(row+1), u/2, 1.5*Math.PI, 2*Math.PI);
+                            ctx.stroke();
+                            break;
+                        case 15:  // 3 & 6 & 9 & 12
+                            ctx.beginPath();
+                            ctx.arc(u*(col+1), u*(row+1), u/2, Math.PI, 1.5*Math.PI);
+                            ctx.stroke();
+                            ctx.beginPath();
+                            ctx.arc(u*(col+1), u*(row), u/2, 0.5*Math.PI, Math.PI);
+                            ctx.stroke();
+                            ctx.beginPath();
+                            ctx.arc(u*(col), u*(row), u/2, 0, 0.5*Math.PI);
+                            ctx.stroke();
+                            ctx.beginPath();
+                            ctx.arc(u*(col), u*(row+1), u/2, 1.5*Math.PI, 2*Math.PI);
+                            ctx.stroke();
+                            break;
+                    }
+                }
+            }
+        }
+
+        function onClick(event) {
+            // determine element that was clicked
+            var col = Math.floor(event.pageX / u);
+            var row = Math.floor(event.pageY / u);
+            var clicked_square = grid_squares[row][col];
+
+            // set bool for a completed puzzle
+            levelComplete = true;
+            
+            // rotate this square
+            clicked_square.rotate();
+
+            // clear and redraw canvas
+            redraw();
+
+            // if levelComplete is still true, no mismatched edges were detected. game ends
+            console.log(levelComplete);
+            if (levelComplete) {
+                // show message
+                alert("Puzzle complete!")
+            }
+        }
+
+        canvas.addEventListener('click', onClick);
+        
+        
+        
+
+
+
+
+    </script>
+</body>
