@@ -11,12 +11,15 @@
 
 
 <body>
+    <div>
     <canvas id="playwindow" width="500" height="500"></canvas>
+    </div>
+    
     <script>
         // initialize level-wide values
-        var l = 5;  // grid size - this should be separate from m & n because of reasons
+        var l = 5;
+        // grid size - this should be separate from m & n because of reasons
         var m = n = l;  // m rows, m columns
-        var u = 500/l;  // size of each square
 
         /*
         link_frequency determines likelihood of an edge being a link.
@@ -53,7 +56,6 @@
                 grid_edges_N[row][col] = Math.min(Math.floor(Math.random() * link_frequency), 1);
             }
         }
-        // console.log("grid_edges_N", grid_edges_N);
 
         // define west edges
         var grid_edges_W = Array.from(Array(m), () => new Array(n+1).fill(0));
@@ -62,7 +64,16 @@
                 grid_edges_W[row][col] = Math.min(Math.floor(Math.random() * link_frequency), 1);
             }
         }
-        // console.log("grid_edges_W", grid_edges_W);
+        
+        // for an extreme case where both array's are 0
+        // insert a random 1 as an edge
+        var random_row = Math.min(Math.floor(Math.random() * (l-2) + 1), 1);
+        var random_col = Math.min(Math.floor(Math.random() * l), 1);
+        grid_edges_N[random_row][random_col] = 1;
+        console.log(random_row, random_col);
+
+        console.log(grid_edges_N);
+        console.log(grid_edges_W);
 
         // create array of puzzle pieces
         var grid_squares = Array.from(Array(m), () => new Array(n));
@@ -70,6 +81,10 @@
         // set up canvas
         const canvas = document.getElementById("playwindow");
         const ctx = canvas.getContext("2d");
+
+        // get unit size
+        const height = canvas.height
+        var u = height/l;  // size of each square
 
         // define squares
         for (var row = 0; row < m; row++) {
@@ -83,18 +98,21 @@
                                                     u, 0);
 
                 // at this point the square is a valid net
-                // now rotate the square by a rand(0,3) value
-                var initial_rotation = Math.floor(Math.random() * 4)
+                // now rotate the square by a rand(1,3) value
+                // the floor of 1 avoids automatic puzzle solving (not gracefully)
+                var initial_rotation = Math.floor(Math.random() * 3) + 1;
                 for (var i = 0; i < initial_rotation; i++) {
                     square.rotate();
                 }
             }
         }
 
+        var levelComplete = true;
+
         function redraw() {
-            // // retrieve the canvas and clear it
-            const u = 500/l;
-		    ctx.clearRect(0, 0, 500, 500);
+            // retrieve the canvas and clear it
+		    ctx.clearRect(0, 0, height, height);
+            ctx.fillStyle = "white";
 
             for (var row = 0; row < m; row++) {
                 for (var col = 0; col < n; col++) {
@@ -104,16 +122,41 @@
                     // determine if north and west edges are appropriately matched
                     // to corresponding south and east edges
                     // if a mismatch is detected, the puzzle is not complete
+
+                    // check inner edges
                     if (row > 0) {
                         if (thisSquare.n != grid_squares[row-1][col].s) {
                             levelComplete = false;
                         }
                     }
+                    // check outer edges
+                    else if (row == 0) {
+                        if (thisSquare.n != 0) {
+                            levelComplete = false;
+                        }
+                    } else if (row == m) {
+                        if (this.Square.s != 0) {
+                            levelComplete = false;
+                        }
+                    }
+
+                    // check inner edges
                     if (col > 0) {
                         if (thisSquare.w != grid_squares[row][col-1].e) {
                             levelComplete = false;
                         }
-                    }                 
+                    }
+                    // check outer edges
+                    else if (col == 0)  {
+                        if (thisSquare.w != 0) {
+                            levelComplete = false;
+                        }
+                    } else if (col == n) {
+                        if (this.Square.e != 0) {
+                            levelComplete = false;
+                        }
+                    }
+                    console.log(levelComplete, row, col);       
 
                     // calculate shape which will determine drawing
                     shape = thisSquare.n*8 + thisSquare.w*4 + thisSquare.s*2 + thisSquare.e;
@@ -121,7 +164,6 @@
                     ctx.lineWidth = u / 6;
                     // ctx.lineCap = "round";  this needs layering in order to function
                     var end_cap_size = u / 6;
-                    ctx.fillStyle = "white";
                     
                     // draw square
                     switch (shape) {
@@ -251,7 +293,11 @@
             }
         }
 
+        // draw upon load
+        redraw();
+
         function onClick(event) {
+
             // determine element that was clicked
             var col = Math.floor(event.pageX / u);
             var row = Math.floor(event.pageY / u);
@@ -267,11 +313,11 @@
             redraw();
 
             // if levelComplete is still true, no mismatched edges were detected. game ends
-            console.log(levelComplete);
             if (levelComplete) {
                 // show message
                 alert("Puzzle complete!")
             }
+            console.log(grid_squares);
         }
 
         canvas.addEventListener('click', onClick);
